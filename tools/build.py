@@ -221,7 +221,7 @@ const KEY = "javaOopQuizV1";
 let state = JSON.parse(localStorage.getItem(KEY) || "null") || {answers:{}, order:[], reviewOnly:false};
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 const $ = id => document.getElementById(id);
-const norm = s => (s||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").map(l=>l.replace(/\s+$/,""")).join("\n").replace(/\n+$/,"");
+const norm = s => (s||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").map(l=>l.replace(/\s+$/,"")).join("\n").replace(/\n+$/,"");
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 const KEYWORDS = new Set(("abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while var record sealed permits yield").split(" "));
 function highlight(src){
