@@ -218,8 +218,29 @@ textarea{width:100%;background:var(--code);color:var(--text);border:1px solid va
 <script>
 const DATA = __DATA__;
 const KEY = "javaOopQuizV1";
-let state = JSON.parse(localStorage.getItem(KEY) || "null") || {answers:{}, order:[], reviewOnly:false};
+function loadState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(KEY) || "null");
+    if(!raw || typeof raw !== "object") return {answers:{}, order:[], reviewOnly:false};
+    const validIds = new Set(DATA.questions.map(q=>q.id));
+    const answers = {};
+    if(raw.answers && typeof raw.answers === "object"){
+      for(const id of Object.keys(raw.answers)){
+        const a = raw.answers[id];
+        if(validIds.has(id) && a && typeof a === "object" && typeof a.correct === "boolean") answers[id] = a;
+      }
+    }
+    const order = Array.isArray(raw.order) ? raw.order.filter(id=>validIds.has(id)) : [];
+    return {answers, order, reviewOnly: !!raw.reviewOnly};
+  }catch(e){ return {answers:{}, order:[], reviewOnly:false}; }
+}
+let state = loadState();
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+function answerText(q){
+  if(q.compileError) return "COMPILE_ERROR";
+  if(q.exception) return "EXCEPTION=" + q.exception + "\n" + q.expected;
+  return q.expected;
+}
 const $ = id => document.getElementById(id);
 const norm = s => (s||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n").map(l=>l.replace(/\s+$/,"")).join("\n").replace(/\n+$/,"");
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
@@ -257,7 +278,14 @@ function start(){
   const qs=filtered(); state.order=qs.map(q=>q.id); state.cur=0; state.phase="ask"; save(); draw();
 }
 function draw(){
-  const area=$("quizArea"); const id=state.order[state.cur]; const q=DATA.questions.find(x=>x.id===id);
+  const area=$("quizArea");
+  if(!state.order.length){
+    area.innerHTML='<div class="card muted">مفيش أسئلة في الاختيار ده.</div>';
+    return;
+  }
+  if(state.cur>=state.order.length) state.cur=0;
+  const id=state.order[state.cur]; const q=DATA.questions.find(x=>x.id===id);
+  if(!q){ state.order=state.order.filter(x=>x!==id); draw(); return; }
   const answered=!!state.answers[id];
   const ans=state.answers[id];
   const mode=q.compileError?"choice":(q.exception?"exc":"output");
@@ -276,7 +304,7 @@ function draw(){
       html+='<div class="opt'+(ans&&ans.pick===p?" sel":"")+'" data-pick="'+p+'">'+t+'</div>';
     });
     html+='</div>';
-    html+='<div class="muted">لو اخترت "بيرمي Exception" الصح هوChoice — شوف الإجابة تحت بعد ما تجاوب.</div>';
+    html+='<div class="muted">لو اخترت "بيرمي Exception" اسم الـ Exception هيظهر في الإجابة تحت.</div>';
   } else {
     html+='<div class="muted">اكتب الناتج اللي هيطبعه البرنامج (stdout). لو بيقع بـ Runtime Exception اختار الزرار.</div>';
     html+='<textarea id="ansBox" dir="ltr" placeholder="الناتج هنا..."></textarea>';
@@ -286,9 +314,7 @@ function draw(){
     html+='<div class="opt" id="submitOut" style="background:var(--accent);color:#082f49;font-weight:700">شيك</div>';
     html+='</div>';
   }
-  if(!answered){
-    html+='<div style="display:flex;gap:8px;margin-top:10px"><button class="primary" id="nextBtn" disabled>التالي</button></div>';
-  }
+  html+='<div style="display:flex;gap:8px;margin-top:10px"><button class="primary" id="nextBtn"'+(answered?"":" disabled")+'>التالي</button></div>';
   html+='<div class="feedback" id="fb"></div>';
   html+='<div class="expl'+(answered?" show":"")+'" id="expl">';
   html+='<b>الإجابة الصحيحة:</b><pre class="code" style="margin:8px 0"><code>'+esc(answerText(q))+'</code></pre>';
@@ -351,13 +377,21 @@ function updateScore(){
   const done=new Set(Object.keys(state.answers)).size;
   $("barFill").style.width=(done/all*100)+"%";
 }
-$("topicSel").onchange=start;
-$("shuffleBtn").onclick=()=>{const qs=filtered();state.order=shuffle(qs.map(q=>q.id));state.cur=0;state.phase="ask";save();draw();};
-$("reviewBtn").onclick=()=>{state.reviewOnly=true;const wrong=DATA.questions.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);if(!wrong.length){alert("مفيش إجابات غلط للمراجعة!");return;}state.order=wrong.map(q=>q.id);state.cur=0;save();draw();};
-$("resetBtn").onclick=()=>{if(confirm("تمسح كل التقدم؟")){localStorage.removeItem(KEY);state={answers:{},order:[],reviewOnly:false};start();}};
-renderTopics();
-updateScore();
-start();
+function showError(e){
+  const area=$("quizArea") || document.body;
+  area.innerHTML='<div class="card"><b>حصل خطأ غير متوقع في تحميل الكويز.</b><pre class="code">'+esc(String(e&&e.stack||e))+'</pre></div>';
+}
+try{
+  $("topicSel").onchange=start;
+  $("shuffleBtn").onclick=()=>{const qs=filtered();state.order=shuffle(qs.map(q=>q.id));state.cur=0;state.phase="ask";save();draw();};
+  $("reviewBtn").onclick=()=>{state.reviewOnly=true;const wrong=DATA.questions.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);if(!wrong.length){alert("مفيش إجابات غلط للمراجعة!");return;}state.order=wrong.map(q=>q.id);state.cur=0;save();draw();};
+  $("resetBtn").onclick=()=>{if(confirm("تمسح كل التقدم؟")){localStorage.removeItem(KEY);state={answers:{},order:[],reviewOnly:false};start();}};
+  renderTopics();
+  updateScore();
+  start();
+}catch(e){
+  showError(e);
+}
 </script>
 </body>
 </html>
