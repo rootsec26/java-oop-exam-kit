@@ -49,6 +49,8 @@ def parse_expected(raw):
 
 
 def find_exception_class(stderr):
+    if "Main method not found" in stderr:
+        return "MainMethodNotFound"
     m = re.search(r'Exception in thread "[^"]*"\s+([\w.$]+)', stderr)
     if not m:
         m = re.search(r"([\w.$]+(?:Exception|Error))\s*:", stderr)

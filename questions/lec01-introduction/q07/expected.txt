@@ -1,0 +1,4 @@
+First
+Second
+Inside block
+Last
