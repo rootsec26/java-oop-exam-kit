@@ -41,8 +41,9 @@ python tools/verify.py
 <!-- LECTURES:START -->
 | [محاضرة 1: مدخل إلى البرامج وجافا (Introduction to Programs and Java)](generated/lectures/01-introduction.md) | 16 |
 | [محاضرة 2: أساسيات جافا — المتغيرات والأنواع والعمليات (Java Basics — Variables, Types, Operators)](generated/lectures/02-java-basics.md) | 46 |
+| [محاضرة 4: الـ Methods (Methods)](generated/lectures/04-methods.md) | 53 |
 
-**مجموع أسئلة المحاضرات: 62**
+**مجموع أسئلة المحاضرات: 115**
 <!-- LECTURES:END -->
 
 ## تساهم؟
