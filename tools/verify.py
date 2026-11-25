@@ -8,8 +8,11 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QUESTIONS_DIR = os.path.join(ROOT, "questions")
 CODING_DIR = os.path.join(ROOT, "coding")
+LECTURES_DIR = os.path.join(ROOT, "lectures")
 JAVAC_TIMEOUT = 30
 JAVA_TIMEOUT = 10
+
+FENCE_RE = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
 
 
 def run(cmd, cwd, timeout):
@@ -54,9 +57,90 @@ def find_exception_class(stderr):
     return m.group(1).split(".")[-1]
 
 
+def build_java_file(code):
+    imports = []
+    body_lines = []
+    for ln in code.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        if re.match(r"^\s*import\s", ln):
+            imports.append(ln.strip())
+        else:
+            body_lines.append(ln)
+    body = "\n".join(body_lines).strip("\n")
+    m = re.search(r"\b(?:public\s+)?class\s+(\w+)", body)
+    if m:
+        cls = m.group(1)
+        src = "\n".join(imports) + ("\n" if imports else "") + body + "\n"
+        return f"{cls}.java", cls, src
+    wrapped = "\n".join(imports)
+    if wrapped:
+        wrapped += "\n"
+    wrapped += "public class Main {\n    public static void main(String[] args) {\n"
+    wrapped += body + "\n    }\n}\n"
+    return "Main.java", "Main", wrapped
+
+
+def compile_and_run(tmp, src_name, main_class):
+    rc, out, err = run(["javac", src_name], tmp, JAVAC_TIMEOUT)
+    if rc != 0:
+        tail = (err or out).strip().split("\n")[-3:]
+        return None, "javac failed:\n    " + "\n    ".join(tail)
+    rc, out, err = run(["java", main_class], tmp, JAVA_TIMEOUT)
+    if rc != 0:
+        exc = find_exception_class(err)
+        return ("EXC", exc or f"exit {rc}"), None
+    return ("OK", normalize(out)), None
+
+
+def verify_lecture(path):
+    label = os.path.relpath(path, ROOT).replace(os.sep, "/")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    blocks = [(m.group(1).strip().lower(), m.group(2)) for m in FENCE_RE.finditer(text)]
+    results = []
+    i = 0
+    while i < len(blocks):
+        lang, code = blocks[i]
+        if lang == "java run":
+            expected = ""
+            if i + 1 < len(blocks) and blocks[i + 1][0] == "output":
+                expected = normalize(blocks[i + 1][1])
+                i += 1
+            else:
+                results.append((label, False, "java run block without following output block"))
+                i += 1
+                continue
+            fname, main_class, src = build_java_file(code)
+            tmp = tempfile.mkdtemp(prefix="lv_")
+            try:
+                with open(os.path.join(tmp, fname), "w", encoding="utf-8", newline="\n") as f:
+                    f.write(src)
+                status, payload = compile_and_run(tmp, fname, main_class)
+                if status is None:
+                    results.append((label, False, payload))
+                elif status == "EXC":
+                    results.append((label, False,
+                                    f"example threw {payload} but output block expects clean output"))
+                elif payload != expected:
+                    results.append((label, False,
+                                    "output mismatch:\n--- expected ---\n" + expected +
+                                    "\n--- actual ---\n" + payload))
+                else:
+                    results.append((label, True, "ok"))
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+        i += 1
+    if not results:
+        results.append((label, True, "no java run examples"))
+    return results
+
+
 def verify_question(qdir, topic):
     name = os.path.basename(qdir)
     label = f"{topic}/{name}"
+    if os.path.exists(os.path.join(qdir, "options.json")):
+        return (label, True, "theory question (options.json, not machine-verified)")
+    if not os.path.exists(os.path.join(qdir, "Main.java")):
+        return (label, False, "missing Main.java and options.json")
     with open(os.path.join(qdir, "expected.txt"), encoding="utf-8") as f:
         raw_expected = f.read()
     is_compile_error = raw_expected.strip() == "COMPILE_ERROR"
@@ -145,6 +229,12 @@ def main():
             pdir = os.path.join(CODING_DIR, p)
             if os.path.isdir(pdir):
                 results.append(verify_coding(pdir))
+    if os.path.isdir(LECTURES_DIR):
+        for lec in sorted(os.listdir(LECTURES_DIR)):
+            ldir = os.path.join(LECTURES_DIR, lec)
+            lfile = os.path.join(ldir, "lecture.md")
+            if os.path.isdir(ldir) and os.path.exists(lfile):
+                results.extend(verify_lecture(lfile))
 
     width = max(len(r[0]) for r in results) if results else 0
     failed = 0
