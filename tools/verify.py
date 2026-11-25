@@ -12,7 +12,7 @@ LECTURES_DIR = os.path.join(ROOT, "lectures")
 JAVAC_TIMEOUT = 30
 JAVA_TIMEOUT = 10
 
-FENCE_RE = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
+FENCE_RE = re.compile(r"```([^\n]*)\n(.*?)```", re.DOTALL)
 
 
 def run(cmd, cwd, timeout):
@@ -88,7 +88,7 @@ def compile_and_run(tmp, src_name, main_class):
     if rc != 0:
         exc = find_exception_class(err)
         return ("EXC", exc or f"exit {rc}"), None
-    return ("OK", normalize(out)), None
+    return "OK", normalize(out)
 
 
 def verify_lecture(path):

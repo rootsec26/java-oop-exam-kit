@@ -1,0 +1,1 @@
+{"options": ["float f = 100.2f;", "float f = 100.2;", "float f = (float)100.2d;", "الاتنين B و C صح"], "answer": 0}
