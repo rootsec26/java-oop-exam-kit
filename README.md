@@ -34,6 +34,17 @@ python tools/verify.py
 
 **المجموع: 73 سؤال** + 6 مسائل coding في `coding/` (كل واحدة فيها `problem.md` و `Starter.java` و `Solution.java` و `Tests.java`).
 
+## المحاضرات
+
+| المحاضرة | العدد |
+|---|---|
+<!-- LECTURES:START -->
+| [محاضرة 1: مدخل إلى البرامج وجافا (Introduction to Programs and Java)](generated/lectures/01-introduction.md) | 16 |
+| [محاضرة 2: أساسيات جافا — المتغيرات والأنواع والعمليات (Java Basics — Variables, Types, Operators)](generated/lectures/02-java-basics.md) | 46 |
+
+**مجموع أسئلة المحاضرات: 62**
+<!-- LECTURES:END -->
+
 ## تساهم؟
 
 شوف [CONTRIBUTING.md](CONTRIBUTING.md) — 3 خطوات: اعمل فولدر للسؤال، اكتب `Main.java` و `expected.txt`، وشغّل `verify.py`.

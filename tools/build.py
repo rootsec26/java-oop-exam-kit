@@ -7,6 +7,7 @@ import re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QUESTIONS_DIR = os.path.join(ROOT, "questions")
 CODING_DIR = os.path.join(ROOT, "coding")
+LECTURES_DIR = os.path.join(ROOT, "lectures")
 GENERATED_DIR = os.path.join(ROOT, "generated")
 DOCS_DIR = os.path.join(ROOT, "docs")
 
@@ -57,7 +58,39 @@ def read_explanation(path):
     return title, text
 
 
-def collect_questions():
+def lecture_id_for_topic(topic):
+    if topic.startswith("lec"):
+        return topic[3:]
+    return None
+
+
+def collect_lectures():
+    lectures = []
+    if not os.path.isdir(LECTURES_DIR):
+        return lectures
+    for d in sorted(os.listdir(LECTURES_DIR)):
+        ldir = os.path.join(LECTURES_DIR, d)
+        mpath = os.path.join(ldir, "meta.json")
+        lpath = os.path.join(ldir, "lecture.md")
+        if not (os.path.isdir(ldir) and os.path.exists(mpath) and os.path.exists(lpath)):
+            continue
+        with open(mpath, encoding="utf-8") as f:
+            meta = json.load(f)
+        with open(lpath, encoding="utf-8") as f:
+            content = f.read()
+        lectures.append({
+            "id": d,
+            "title_ar": meta.get("title_ar", d),
+            "title_en": meta.get("title_en", ""),
+            "order": meta.get("order", 999),
+            "content": content,
+        })
+    lectures.sort(key=lambda l: (l["order"], l["id"]))
+    return lectures
+
+
+def collect_questions(lectures):
+    lec_titles = {l["id"]: l["title_ar"] for l in lectures}
     questions = []
     if not os.path.isdir(QUESTIONS_DIR):
         return questions
@@ -65,29 +98,47 @@ def collect_questions():
         tdir = os.path.join(QUESTIONS_DIR, topic)
         if not os.path.isdir(tdir):
             continue
+        lec = lecture_id_for_topic(topic)
         for q in sorted(os.listdir(tdir)):
             qdir = os.path.join(tdir, q)
             if not os.path.isdir(qdir):
                 continue
-            with open(os.path.join(qdir, "Main.java"), encoding="utf-8") as f:
-                code = f.read()
-            with open(os.path.join(qdir, "expected.txt"), encoding="utf-8") as f:
-                raw_expected = f.read()
-            exception, expected = parse_expected(raw_expected)
-            compile_error = raw_expected.strip() == "COMPILE_ERROR"
             title, explanation = read_explanation(os.path.join(qdir, "explanation.md"))
-            questions.append({
+            entry = {
                 "id": f"{topic}/{q}",
                 "topic": topic,
-                "topicLabel": TOPIC_LABELS.get(topic, topic),
+                "lecture": lec,
+                "topicLabel": lec_titles.get(lec, TOPIC_LABELS.get(topic, topic)),
                 "q": q,
                 "title": title,
-                "code": code,
-                "expected": expected,
-                "exception": exception,
-                "compileError": compile_error,
                 "explanation": explanation,
-            })
+            }
+            opath = os.path.join(qdir, "options.json")
+            if os.path.exists(opath):
+                with open(opath, encoding="utf-8") as f:
+                    opts = json.load(f)
+                options = opts.get("options", [])
+                answer = opts.get("answer", 0)
+                if not isinstance(answer, int) or not (0 <= answer < len(options)):
+                    raise ValueError(f"bad answer index in {qdir}")
+                entry.update({
+                    "code": "", "expected": "", "exception": None,
+                    "compileError": False, "options": options,
+                    "answerIndex": answer, "theory": True,
+                })
+            else:
+                with open(os.path.join(qdir, "Main.java"), encoding="utf-8") as f:
+                    code = f.read()
+                with open(os.path.join(qdir, "expected.txt"), encoding="utf-8") as f:
+                    raw_expected = f.read()
+                exception, expected = parse_expected(raw_expected)
+                compile_error = raw_expected.strip() == "COMPILE_ERROR"
+                entry.update({
+                    "code": code, "expected": expected, "exception": exception,
+                    "compileError": compile_error, "options": None,
+                    "answerIndex": None, "theory": False,
+                })
+            questions.append(entry)
     return questions
 
 
@@ -122,10 +173,59 @@ def md_escape_code(code):
     return "```java\n" + code.rstrip("\n") + "\n```"
 
 
+def generate_lecture_markdown(lectures, questions):
+    os.makedirs(os.path.join(GENERATED_DIR, "lectures"), exist_ok=True)
+    by_lec = {}
+    for q in questions:
+        if q["lecture"]:
+            by_lec.setdefault(q["lecture"], []).append(q)
+    index_lines = ["# أسئلة الامتحان حسب المحاضرة\n"]
+    for lec in lectures:
+        qs = by_lec.get(lec["id"], [])
+        lines = [lec["content"].rstrip("\n"), "", "## الأسئلة\n"]
+        for i, q in enumerate(qs, 1):
+            heading = q["title"] or q["q"]
+            lines.append(f"### سؤال {i}: {heading}\n")
+            if q["options"]:
+                for j, opt in enumerate(q["options"]):
+                    mark = " ✔" if j == q["answerIndex"] else ""
+                    lines.append(f"{j + 1}. {opt}{mark}")
+                lines.append("")
+            else:
+                lines.append(md_escape_code(q["code"]))
+                lines.append("")
+            lines.append("<details>")
+            lines.append("<summary>الإجابة</summary>\n")
+            if q["options"]:
+                lines.append(f"**الإجابة:** {q['options'][q['answerIndex']]}\n")
+            elif q["compileError"]:
+                lines.append("**COMPILE_ERROR** — الكود ده مش بيترجم.\n")
+            else:
+                lines.append("**الناتج:**\n")
+                lines.append("```")
+                lines.append(q["expected"] if q["expected"] else "(مفيش output)")
+                lines.append("```")
+                if q["exception"]:
+                    lines.append(f"\nبيرمي `{q['exception']}`\n")
+            lines.append("")
+            lines.append(q["explanation"])
+            lines.append("</details>\n")
+        with open(os.path.join(GENERATED_DIR, "lectures", f"{lec['id']}.md"), "w",
+                  encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines))
+        index_lines.append(f"- [محاضرة {lec['order']}: {lec['title_ar']}"
+                           f" ({lec['title_en']})](generated/lectures/{lec['id']}.md) — {len(qs)} سؤال")
+    with open(os.path.join(GENERATED_DIR, "lectures", "README.md"), "w",
+              encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(index_lines) + "\n")
+
+
 def generate_topic_markdown(questions):
     os.makedirs(GENERATED_DIR, exist_ok=True)
     by_topic = {}
     for q in questions:
+        if q["lecture"]:
+            continue
         by_topic.setdefault(q["topic"], []).append(q)
     index_lines = ["# أسئلة امتحان Java OOP\n",
                    "كل إجابة هنا متأكد منها فعليًا — السكريبت `tools/verify.py` بيترجم ويشغّل كل سؤال ويقارن الناتج.\n"]
@@ -199,6 +299,16 @@ textarea{width:100%;background:var(--code);color:var(--text);border:1px solid va
 .muted{color:var(--muted);font-size:.9rem}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .tag{background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:2px 10px;font-size:.8rem;color:var(--muted)}
+.explain-panel{max-height:70vh;overflow-y:auto}
+.explain-panel h1,.explain-panel h2,.explain-panel h3,.explain-panel h4{margin:.8em 0 .3em;font-size:1.1rem}
+.explain-panel p{margin:.5em 0}
+.explain-panel ul{margin:.5em 0;padding-inline-start:1.4em}
+.explain-panel table{border-collapse:collapse;width:100%;margin:.7em 0;font-size:.9rem}
+.explain-panel th,.explain-panel td{border:1px solid var(--border);padding:5px 9px;text-align:right}
+.explain-panel th{background:var(--bg)}
+.explain-panel code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 4px;font-family:Consolas,monospace;font-size:.85em;direction:ltr;unicode-bidi:embed}
+.explain-panel pre.code{text-align:left}
+.nazri{display:inline-block;background:rgba(251,191,36,.15);border:1px solid #b45309;color:#fbbf24;border-radius:99px;padding:0 8px;font-size:.75rem;margin-inline-start:6px}
 </style>
 </head>
 <body>
@@ -206,13 +316,16 @@ textarea{width:100%;background:var(--code);color:var(--text);border:1px solid va
 <h1>⚡ Java OOP Exam Kit</h1>
 <div class="muted">كويز تفاعلي — الإجابات متأكد منها بتشغيل الكود فعليًا. اختار موضوع، وبعدين "ابدأ".</div>
 <div class="controls">
+<select id="lecSel"></select>
 <select id="topicSel"></select>
+<button id="explainBtn" style="display:none">اقرأ الشرح</button>
 <button id="shuffleBtn">خلط</button>
 <button id="reviewBtn">راجع الغلط</button>
 <button id="resetBtn">صفر التقدم</button>
 <span class="score" id="scoreLabel"></span>
 </div>
 <div class="bar"><div id="barFill"></div></div>
+<div id="explainWrap" style="display:none"><div class="card explain-panel" id="explainCard"></div></div>
 <div id="quizArea"></div>
 </div>
 <script>
@@ -237,6 +350,7 @@ function loadState(){
 let state = loadState();
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
 function answerText(q){
+  if(q.options) return q.options[q.answerIndex];
   if(q.compileError) return "COMPILE_ERROR";
   if(q.exception) return "EXCEPTION=" + q.exception + "\n" + q.expected;
   return q.expected;
@@ -260,17 +374,73 @@ function highlight(src){
   }
   return out;
 }
+function mdInline(s){
+  s=esc(s);
+  s=s.replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>");
+  s=s.replace(/`([^`]+)`/g,"<code>$1</code>");
+  return s;
+}
+function renderMd(src){
+  const lines=src.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n");
+  const isTable=l=>/^\s*\|.*\|\s*$/.test(l);
+  const isSep=r=>/^[\s|:\-]+$/.test(r.trim());
+  const cells=r=>r.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim());
+  let out="",i=0;
+  while(i<lines.length){
+    const l=lines[i];
+    if(/^```/.test(l)){
+      const lang=l.slice(3).trim();let buf=[];i++;
+      while(i<lines.length&&!/^```/.test(lines[i])){buf.push(lines[i]);i++;}
+      i++;const code=buf.join("\n");
+      out+='<pre class="code"><code>'+(lang==="output"?esc(code):highlight(code))+'</code></pre>';continue;
+    }
+    if(/^#{1,4}\s/.test(l)){
+      const lv=l.match(/^#+/)[0].length;
+      out+="<h"+(lv+1)+">"+mdInline(l.replace(/^#+\s*/,""))+"</h"+(lv+1)+">";i++;continue;
+    }
+    if(isTable(l)){
+      const rows=[];
+      while(i<lines.length&&isTable(lines[i])){rows.push(lines[i]);i++;}
+      const head=cells(rows[0]);
+      const body=rows.slice(1).filter(r=>!isSep(r));
+      out+="<table><thead><tr>"+head.map(c=>"<th>"+mdInline(c)+"</th>").join("")+"</tr></thead><tbody>";
+      body.forEach(r=>{out+="<tr>"+cells(r).map(c=>"<td>"+mdInline(c)+"</td>").join("")+"</tr>";});
+      out+="</tbody></table>";continue;
+    }
+    if(/^\s*[-*]\s+/.test(l)){
+      out+="<ul>";
+      while(i<lines.length&&/^\s*[-*]\s+/.test(lines[i])){out+="<li>"+mdInline(lines[i].replace(/^\s*[-*]\s+/,""))+"</li>";i++;}
+      out+="</ul>";continue;
+    }
+    if(l.trim()===""){i++;continue;}
+    const buf=[];
+    while(i<lines.length&&lines[i].trim()!==""&&!/^```|^#{1,4}\s|^\s*[-*]\s+/.test(lines[i])&&!isTable(lines[i])){buf.push(lines[i]);i++;}
+    out+="<p>"+mdInline(buf.join(" "))+"</p>";
+  }
+  return out;
+}
 function filtered(){
-  const t=$("topicSel").value;
-  let qs=DATA.questions.filter(q=>!t||q.topic===t);
+  const lec=$("lecSel").value, t=$("topicSel").value;
+  let qs=DATA.questions;
+  if(lec) qs=qs.filter(q=>q.lecture===lec);
+  else if(t) qs=qs.filter(q=>q.topic===t);
   if(state.reviewOnly){qs=qs.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);}
   return qs;
 }
 function renderTopics(){
   const sel=$("topicSel"); sel.innerHTML="";
-  const all=document.createElement("option"); all.value=""; all.textContent="كل المواضيع ("+DATA.questions.length+")"; sel.appendChild(all);
-  const counts={}; DATA.questions.forEach(q=>counts[q.topic]=(counts[q.topic]||0)+1);
+  const all=document.createElement("option"); all.value=""; all.textContent="كل الأسئلة ("+DATA.questions.length+")"; sel.appendChild(all);
+  const counts={}; DATA.questions.forEach(q=>{if(!q.lecture)counts[q.topic]=(counts[q.topic]||0)+1;});
   Object.keys(counts).sort().forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=DATA.topics[t]+" ("+counts[t]+")";sel.appendChild(o);});
+}
+function renderLectures(){
+  const sel=$("lecSel"); sel.innerHTML="";
+  const none=document.createElement("option"); none.value=""; none.textContent="— محاضرة —"; sel.appendChild(none);
+  const counts={}; DATA.questions.forEach(q=>{if(q.lecture)counts[q.lecture]=(counts[q.lecture]||0)+1;});
+  DATA.lectures.forEach(l=>{const o=document.createElement("option");o.value=l.id;o.textContent="محاضرة "+l.order+": "+l.title_ar+" ("+(counts[l.id]||0)+")";sel.appendChild(o);});
+}
+function toggleExplain(){
+  $("explainBtn").style.display=$("lecSel").value?"":"none";
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function start(){
@@ -288,10 +458,17 @@ function draw(){
   if(!q){ state.order=state.order.filter(x=>x!==id); draw(); return; }
   const answered=!!state.answers[id];
   const ans=state.answers[id];
-  const mode=q.compileError?"choice":(q.exception?"exc":"output");
-  let html='<div class="card"><div class="tags"><span class="tag">'+esc(q.topicLabel)+'</span><span class="tag">'+esc(q.q)+'</span>'+(q.title?'<span class="tag">'+esc(q.title)+'</span>':"")+'</div>';
-  html+='<pre class="code"><code>'+highlight(q.code)+'</code></pre>';
-  if(mode==="choice"){
+  const mode=q.options?"mcq":(q.compileError?"choice":(q.exception?"exc":"output"));
+  const pos=state.order.indexOf(id)+1;
+  let html='<div class="card"><div class="tags"><span class="tag">سؤال '+pos+' من '+state.order.length+'</span><span class="tag">'+esc(q.topicLabel)+'</span>'+(q.theory?'<span class="tag nazri">نظري</span>':"")+(q.title?'<span class="tag">'+esc(q.title)+'</span>':"")+'</div>';
+  if(q.code) html+='<pre class="code"><code>'+highlight(q.code)+'</code></pre>';
+  if(mode==="mcq"){
+    html+='<div class="opts">';
+    q.options.forEach((t,i)=>{
+      html+='<div class="opt'+(ans&&String(ans.pick)===String(i)?" sel":"")+'" data-idx="'+i+'">'+esc(t)+'</div>';
+    });
+    html+='</div>';
+  } else if(mode==="choice"){
     html+='<div class="opts">';
     ["فيه Compile Error","مفيش — بيترجم ويشتغل"].forEach((t,i)=>{
       const pick=i===0? "compile":"run";
@@ -329,7 +506,7 @@ function draw(){
   area.querySelectorAll(".opt").forEach(o=>{
     if(answered) return;
     o.onclick=()=>{
-      const pick=o.dataset.pick;
+      const pick=o.dataset.idx!==undefined?o.dataset.idx:o.dataset.pick;
       if(mode==="output"&&pick==="exc"){
         submitOutput(q,"exc"); return;
       }
@@ -363,6 +540,7 @@ function grade(q,pick,typed,precomputed){
   const id=q.id;
   let correct;
   if(precomputed!==undefined) correct=precomputed;
+  else if(q.options) correct=String(pick)===String(q.answerIndex);
   else if(pick==="compile") correct=q.compileError;
   else if(pick==="exc") correct=!!q.exception;
   else if(pick==="run") correct=!q.compileError&&!q.exception;
@@ -382,11 +560,25 @@ function showError(e){
   area.innerHTML='<div class="card"><b>حصل خطأ غير متوقع في تحميل الكويز.</b><pre class="code">'+esc(String(e&&e.stack||e))+'</pre></div>';
 }
 try{
-  $("topicSel").onchange=start;
+  $("lecSel").onchange=()=>{if($("lecSel").value)$("topicSel").value="";toggleExplain();start();};
+  $("topicSel").onchange=()=>{if($("topicSel").value)$("lecSel").value="";toggleExplain();start();};
+  $("explainBtn").onclick=()=>{
+    const id=$("lecSel").value;
+    const lec=DATA.lectures.find(l=>l.id===id);
+    const wrap=$("explainWrap");
+    if(wrap.style.display!=="none"){wrap.style.display="none";return;}
+    if(!lec){wrap.style.display="none";return;}
+    $("explainCard").innerHTML=renderMd(lec.content)+'<div style="margin-top:14px;text-align:center"><button class="primary" id="startLectureBtn">ابدأ الأسئلة</button></div>';
+    $("startLectureBtn").onclick=start;
+    wrap.style.display="";
+    wrap.scrollIntoView({behavior:"smooth",block:"start"});
+  };
   $("shuffleBtn").onclick=()=>{const qs=filtered();state.order=shuffle(qs.map(q=>q.id));state.cur=0;state.phase="ask";save();draw();};
   $("reviewBtn").onclick=()=>{state.reviewOnly=true;const wrong=DATA.questions.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);if(!wrong.length){alert("مفيش إجابات غلط للمراجعة!");return;}state.order=wrong.map(q=>q.id);state.cur=0;save();draw();};
   $("resetBtn").onclick=()=>{if(confirm("تمسح كل التقدم؟")){localStorage.removeItem(KEY);state={answers:{},order:[],reviewOnly:false};start();}};
   renderTopics();
+  renderLectures();
+  toggleExplain();
   updateScore();
   start();
 }catch(e){
@@ -398,15 +590,46 @@ try{
 """
 
 
-def generate_site(questions, coding):
+def update_readme(lectures, questions):
+    path = os.path.join(ROOT, "README.md")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    start = "<!-- LECTURES:START -->"
+    end = "<!-- LECTURES:END -->"
+    if start not in text or end not in text:
+        return
+    counts = {}
+    for q in questions:
+        if q["lecture"]:
+            counts[q["lecture"]] = counts.get(q["lecture"], 0) + 1
+    rows = []
+    total = 0
+    for lec in lectures:
+        n = counts.get(lec["id"], 0)
+        total += n
+        rows.append(f"| [محاضرة {lec['order']}: {lec['title_ar']}"
+                    f" ({lec['title_en']})](generated/lectures/{lec['id']}.md) | {n} |")
+    block = start + "\n" + "\n".join(rows) + f"\n\n**مجموع أسئلة المحاضرات: {total}**" + "\n" + end
+    text = text[:text.index(start)] + block + text[text.index(end) + len(end):]
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
+def generate_site(questions, coding, lectures):
     os.makedirs(DOCS_DIR, exist_ok=True)
     data = {
         "topics": TOPIC_LABELS,
+        "lectures": [{"id": l["id"], "title_ar": l["title_ar"],
+                      "title_en": l["title_en"], "order": l["order"],
+                      "content": l["content"]} for l in lectures],
         "questions": [{
-            "id": q["id"], "topic": q["topic"], "topicLabel": q["topicLabel"],
+            "id": q["id"], "topic": q["topic"], "lecture": q["lecture"],
+            "topicLabel": q["topicLabel"],
             "q": q["q"], "title": q["title"], "code": q["code"],
             "expected": q["expected"], "exception": q["exception"],
             "compileError": q["compileError"], "explanation": q["explanation"],
+            "options": q["options"], "answerIndex": q["answerIndex"],
+            "theory": q["theory"],
         } for q in questions],
         "coding": [{"id": p["id"], "name": p["name"],
                     "problem": p.get("problem", ""),
@@ -421,11 +644,15 @@ def generate_site(questions, coding):
 
 
 def main():
-    questions = collect_questions()
+    lectures = collect_lectures()
+    questions = collect_questions(lectures)
     coding = collect_coding()
     generate_topic_markdown(questions)
-    generate_site(questions, coding)
-    print(f"generated {len(questions)} questions, {len(coding)} coding problems")
+    generate_lecture_markdown(lectures, questions)
+    update_readme(lectures, questions)
+    generate_site(questions, coding, lectures)
+    print(f"generated {len(questions)} questions ({sum(1 for q in questions if q['lecture'])} lecture), "
+          f"{len(coding)} coding problems, {len(lectures)} lectures")
 
 
 if __name__ == "__main__":
