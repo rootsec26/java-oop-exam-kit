@@ -1,0 +1,5 @@
+static-block
+inst-init
+ctor
+inst-init
+ctor

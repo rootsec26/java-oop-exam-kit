@@ -1,0 +1,4 @@
+Integer:1
+Double:2.5
+Long:3
+Integer:4
