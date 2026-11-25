@@ -153,10 +153,10 @@ def generate_topic_markdown(questions):
             lines.append("")
             lines.append(q["explanation"])
             lines.append("</details>\n")
-        with open(fname, "w", encoding="utf-8") as f:
+        with open(fname, "w", encoding="utf-8", newline="\n") as f:
             f.write("\n".join(lines))
         index_lines.append(f"- [{label}](generated/{topic}.md) — {len(qs)} سؤال")
-    with open(os.path.join(GENERATED_DIR, "README.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(GENERATED_DIR, "README.md"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(index_lines) + "\n")
 
 
@@ -382,7 +382,7 @@ def generate_site(questions, coding):
     }
     payload = json.dumps(data, ensure_ascii=False)
     html_out = SITE_TEMPLATE.replace("__DATA__", payload)
-    with open(os.path.join(DOCS_DIR, "index.html"), "w", encoding="utf-8") as f:
+    with open(os.path.join(DOCS_DIR, "index.html"), "w", encoding="utf-8", newline="\n") as f:
         f.write(html_out)
 
 
