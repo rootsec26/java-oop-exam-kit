@@ -68,7 +68,8 @@ def build_java_file(code):
         else:
             body_lines.append(ln)
     body = "\n".join(body_lines).strip("\n")
-    m = re.search(r"\b(?:public\s+)?class\s+(\w+)", body)
+    m = (re.search(r"\bpublic\s+class\s+(\w+)", body)
+         or re.search(r"\bclass\s+(\w+)", body))
     if m:
         cls = m.group(1)
         src = "\n".join(imports) + ("\n" if imports else "") + body + "\n"
