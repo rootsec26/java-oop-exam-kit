@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -140,8 +141,23 @@ def verify_lecture(path):
 def verify_question(qdir, topic):
     name = os.path.basename(qdir)
     label = f"{topic}/{name}"
-    if os.path.exists(os.path.join(qdir, "options.json")):
-        return (label, True, "theory question (options.json, not machine-verified)")
+    opath = os.path.join(qdir, "options.json")
+    if os.path.exists(opath):
+        with open(opath, encoding="utf-8") as f:
+            opts = json.load(f)
+        checks = opts.get("verify")
+        if not checks:
+            return (label, True, "theory question (options.json, not machine-verified)")
+        results = []
+        for chk in checks:
+            if chk.get("mode") == "source":
+                results.append(verify_source_check(label, chk))
+            else:
+                results.append(verify_src_check(label, chk, opts))
+        bad = [r for r in results if not r[1]]
+        if bad:
+            return bad[0]
+        return (label, True, f"{len(results)} machine check(s) ok")
     if not os.path.exists(os.path.join(qdir, "Main.java")):
         return (label, False, "missing Main.java and options.json")
     with open(os.path.join(qdir, "expected.txt"), encoding="utf-8") as f:
@@ -190,6 +206,81 @@ def verify_question(qdir, topic):
         return (label, True, "ok")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def run_src(tmp, src):
+    fname, main_class, text = build_java_file(src)
+    with open(os.path.join(tmp, fname), "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    rc, out, err = run(["javac", fname], tmp, JAVAC_TIMEOUT)
+    if rc != 0:
+        tail = (err or out).strip().split("\n")[-3:]
+        return "COMPILE", "javac failed:\n    " + "\n    ".join(tail)
+    rc, out, err = run(["java", main_class], tmp, JAVA_TIMEOUT)
+    if rc != 0:
+        exc = find_exception_class(err)
+        return "EXC", exc or f"exit {rc}"
+    return "OK", normalize(out)
+
+
+def expect_matches(status, payload, want):
+    if want == "COMPILE_ERROR":
+        return status == "COMPILE"
+    if want.startswith("EXCEPTION="):
+        return status == "EXC" and payload == want[len("EXCEPTION="):]
+    return status == "OK" and payload == normalize(want)
+
+
+def verify_src_check(label, chk, opts):
+    if chk.get("expect_option"):
+        want = normalize(opts["options"][opts["answer"]])
+        kind = "answer option"
+    else:
+        want = chk.get("expect", "")
+        kind = "expected output"
+    tmp = tempfile.mkdtemp(prefix="mc_")
+    try:
+        status, payload = run_src(tmp, chk["src"])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if expect_matches(status, payload, want):
+        return (label, True, f"check ok ({kind})")
+    return (label, False,
+            f"check failed ({kind}): want {want!r}, got status={status} payload={payload!r}")
+
+
+def verify_source_check(label, chk):
+    expect = chk["expect"]
+    results = []
+    tmp = tempfile.mkdtemp(prefix="sm_")
+    try:
+        with open(os.path.join(tmp, "Welcome.java"), "w", encoding="utf-8", newline="\n") as f:
+            f.write(chk["decoy"])
+        rc, out, err = run(["javac", "Welcome.java"], tmp, JAVAC_TIMEOUT)
+        if rc != 0:
+            return (label, False, "decoy class failed to compile:\n    " +
+                    "\n    ".join((err or out).strip().split("\n")[-3:]))
+        with open(os.path.join(tmp, "Welcome.java"), "w", encoding="utf-8", newline="\n") as f:
+            f.write(chk["src"])
+        rc, out, err = run(["java", "Welcome.java"], tmp, JAVA_TIMEOUT)
+        results.append((rc == 0 and normalize(out) == normalize(expect),
+                        f"java Welcome.java with stale Welcome.class: rc={rc} out={normalize(out)!r}"))
+        tmp2 = tempfile.mkdtemp(prefix="sn_")
+        try:
+            with open(os.path.join(tmp2, "Welcome.java"), "w", encoding="utf-8", newline="\n") as f:
+                f.write(chk["src"])
+            rc, out, err = run(["java", "Welcome.java"], tmp2, JAVA_TIMEOUT)
+            results.append((rc == 0 and normalize(out) == normalize(expect),
+                            f"java Welcome.java without Welcome.class: rc={rc} out={normalize(out)!r}"))
+        finally:
+            shutil.rmtree(tmp2, ignore_errors=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    bad = [m for ok, m in results if not ok]
+    if bad:
+        return (label, False, "source-launcher check failed (want " + repr(expect) + "):\n    " +
+                "\n    ".join(bad))
+    return (label, True, "source launcher ignores/does not need Welcome.class")
 
 
 def verify_coding(cdir):

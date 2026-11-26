@@ -90,8 +90,33 @@ def collect_lectures():
     return lectures
 
 
-def collect_questions(lectures):
+EXAMS_DIR = os.path.join(ROOT, "exams")
+
+
+def collect_exams():
+    exams = []
+    if not os.path.isdir(EXAMS_DIR):
+        return exams
+    for d in sorted(os.listdir(EXAMS_DIR)):
+        edir = os.path.join(EXAMS_DIR, d)
+        mpath = os.path.join(edir, "meta.json")
+        if not (os.path.isdir(edir) and os.path.exists(mpath)):
+            continue
+        with open(mpath, encoding="utf-8") as f:
+            meta = json.load(f)
+        exams.append({
+            "id": d,
+            "title_ar": meta.get("title_ar", d),
+            "title_en": meta.get("title_en", ""),
+            "order": meta.get("order", 999),
+        })
+    exams.sort(key=lambda e: (e["order"], e["id"]))
+    return exams
+
+
+def collect_questions(lectures, exams):
     lec_titles = {l["id"]: l["title_ar"] for l in lectures}
+    exam_titles = {e["id"]: e["title_ar"] for e in exams}
     questions = []
     if not os.path.isdir(QUESTIONS_DIR):
         return questions
@@ -100,6 +125,7 @@ def collect_questions(lectures):
         if not os.path.isdir(tdir):
             continue
         lec = lecture_id_for_topic(topic)
+        exam = topic[len("exam-"):] if topic.startswith("exam-") else None
         for q in sorted(os.listdir(tdir)):
             qdir = os.path.join(tdir, q)
             if not os.path.isdir(qdir):
@@ -109,7 +135,9 @@ def collect_questions(lectures):
                 "id": f"{topic}/{q}",
                 "topic": topic,
                 "lecture": lec,
-                "topicLabel": lec_titles.get(lec, TOPIC_LABELS.get(topic, topic)),
+                "exam": exam,
+                "topicLabel": (exam_titles.get(exam, exam) if exam
+                               else lec_titles.get(lec, TOPIC_LABELS.get(topic, topic))),
                 "q": q,
                 "title": title,
                 "explanation": explanation,
@@ -123,7 +151,7 @@ def collect_questions(lectures):
                 if not isinstance(answer, int) or not (0 <= answer < len(options)):
                     raise ValueError(f"bad answer index in {qdir}")
                 entry.update({
-                    "code": "", "expected": "", "exception": None,
+                    "code": opts.get("code", ""), "expected": "", "exception": None,
                     "compileError": False, "options": options,
                     "answerIndex": answer, "theory": True,
                 })
@@ -225,7 +253,7 @@ def generate_topic_markdown(questions):
     os.makedirs(GENERATED_DIR, exist_ok=True)
     by_topic = {}
     for q in questions:
-        if q["lecture"]:
+        if q["lecture"] or q["exam"]:
             continue
         by_topic.setdefault(q["topic"], []).append(q)
     index_lines = ["# أسئلة امتحان Java OOP\n",
@@ -258,6 +286,49 @@ def generate_topic_markdown(questions):
             f.write("\n".join(lines))
         index_lines.append(f"- [{label}](generated/{topic}.md) — {len(qs)} سؤال")
     with open(os.path.join(GENERATED_DIR, "README.md"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(index_lines) + "\n")
+
+
+def generate_exam_markdown(exams, questions):
+    os.makedirs(os.path.join(GENERATED_DIR, "exams"), exist_ok=True)
+    index_lines = ["# امتحانات سابقة\n"]
+    for exam in exams:
+        qs = [q for q in questions if q["exam"] == exam["id"]]
+        lines = [f"# {exam['title_ar']}\n"]
+        for i, q in enumerate(qs, 1):
+            heading = q["title"] or q["q"]
+            lines.append(f"## {i}. {heading}\n")
+            if q["options"]:
+                for j, opt in enumerate(q["options"]):
+                    mark = " ✔" if j == q["answerIndex"] else ""
+                    lines.append(f"{j + 1}. {opt}{mark}")
+                lines.append("")
+            if q["code"]:
+                lines.append(md_escape_code(q["code"]))
+                lines.append("")
+            lines.append("<details>")
+            lines.append("<summary>الإجابة</summary>\n")
+            if q["options"]:
+                lines.append(f"**الإجابة:** {q['options'][q['answerIndex']]}\n")
+            elif q["compileError"]:
+                lines.append("**COMPILE_ERROR** — الكود ده مش بيترجم.\n")
+            else:
+                lines.append("**الناتج:**\n")
+                lines.append("```")
+                lines.append(q["expected"] if q["expected"] else "(مفيش output)")
+                lines.append("```")
+                if q["exception"]:
+                    lines.append(f"\nبيرمي `{q['exception']}`\n")
+            lines.append("")
+            lines.append(q["explanation"])
+            lines.append("</details>\n")
+        with open(os.path.join(GENERATED_DIR, "exams", f"{exam['id']}.md"), "w",
+                  encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines))
+        index_lines.append(f"- [{exam['title_ar']}"
+                           f" ({exam['title_en']})](generated/exams/{exam['id']}.md) — {len(qs)} سؤال")
+    with open(os.path.join(GENERATED_DIR, "exams", "README.md"), "w",
+              encoding="utf-8", newline="\n") as f:
         f.write("\n".join(index_lines) + "\n")
 
 
@@ -605,15 +676,19 @@ function bindCodex(root){
 function filtered(){
   const lec=$("lecSel").value, t=$("topicSel").value;
   let qs=DATA.questions;
-  if(lec) qs=qs.filter(q=>q.lecture===lec);
-  else if(t) qs=qs.filter(q=>q.topic===t);
+  if(lec&&lec.indexOf("exam:")===0) qs=qs.filter(q=>q.exam===lec.slice(5));
+  else{
+    qs=qs.filter(q=>!q.exam);
+    if(lec) qs=qs.filter(q=>q.lecture===lec);
+    else if(t) qs=qs.filter(q=>q.topic===t);
+  }
   if(state.reviewOnly){qs=qs.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);}
   return qs;
 }
 function renderTopics(){
   const sel=$("topicSel"); sel.innerHTML="";
-  const all=document.createElement("option"); all.value=""; all.textContent="All Topics ("+DATA.questions.length+")"; sel.appendChild(all);
-  const counts={}; DATA.questions.forEach(q=>{if(!q.lecture)counts[q.topic]=(counts[q.topic]||0)+1;});
+  const all=document.createElement("option"); all.value=""; all.textContent="All Topics ("+DATA.questions.filter(q=>!q.exam).length+")"; sel.appendChild(all);
+  const counts={}; DATA.questions.forEach(q=>{if(!q.lecture&&!q.exam)counts[q.topic]=(counts[q.topic]||0)+1;});
   Object.keys(counts).sort().forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=DATA.topics[t]+" ("+counts[t]+")";sel.appendChild(o);});
 }
 function renderLectures(){
@@ -621,9 +696,18 @@ function renderLectures(){
   const none=document.createElement("option"); none.value=""; none.textContent="All Lectures"; sel.appendChild(none);
   const counts={}; DATA.questions.forEach(q=>{if(q.lecture)counts[q.lecture]=(counts[q.lecture]||0)+1;});
   DATA.lectures.forEach(l=>{const o=document.createElement("option");o.value=l.id;o.textContent="Lecture "+l.order+": "+l.title_ar+" ("+(counts[l.id]||0)+")";sel.appendChild(o);});
+  if(DATA.exams&&DATA.exams.length){
+    const grp=document.createElement("optgroup"); grp.label="Past Exams";
+    DATA.exams.forEach(e=>{
+      const n=DATA.questions.filter(q=>q.exam===e.id).length;
+      const o=document.createElement("option");o.value="exam:"+e.id;o.textContent=e.title_ar+" ("+n+")";grp.appendChild(o);
+    });
+    sel.appendChild(grp);
+  }
 }
 function toggleExplain(){
-  $("explainBtn").style.display=$("lecSel").value?"":"none";
+  const v=$("lecSel").value;
+  $("explainBtn").style.display=(v&&v.indexOf("exam:")!==0)?"":"none";
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function start(){
@@ -733,9 +817,9 @@ function updateScore(){
   const total=Object.keys(state.answers).length;
   const right=Object.values(state.answers).filter(a=>a.correct).length;
   $("scoreLabel").textContent=total?right+"/"+total:"0/0";
-  const all=DATA.questions.length;
-  const done=new Set(Object.keys(state.answers)).size;
-  $("barFill").style.width=(done/all*100)+"%";
+  const all=DATA.questions.filter(q=>!q.exam).length;
+  const done=Object.keys(state.answers).filter(id=>{const q=DATA.questions.find(x=>x.id===id);return q&&!q.exam;}).length;
+  $("barFill").style.width=(all?(done/all*100):0)+"%";
 }
 function fmtClock(ms){
   const s=Math.max(0,Math.ceil(ms/1000));
@@ -759,7 +843,7 @@ function armTimer(){
   tickExam();
 }
 function startExam(){
-  const pool=shuffle(DATA.questions.map(q=>q.id));
+  const pool=shuffle(DATA.questions.filter(q=>!q.exam).map(q=>q.id));
   const n=Math.min(EXAM_SIZE,pool.length);
   exam={order:pool.slice(0,n),cur:0,answers:{},
     deadline:Date.now()+EXAM_SECONDS*1000,startedAt:Date.now(),finished:false,finishedAt:0};
@@ -996,7 +1080,7 @@ async function shareResult(){
 }
 function reviewWrong(){
   state.reviewOnly=true;
-  const wrong=DATA.questions.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);
+  const wrong=DATA.questions.filter(q=>!q.exam&&state.answers[q.id]&&!state.answers[q.id].correct);
   if(!wrong.length){ alert("No wrong answers to review!"); return; }
   state.order=wrong.map(q=>q.id); state.cur=0; save(); draw();
 }
@@ -1018,7 +1102,7 @@ try{
     wrap.style.display="";
     wrap.scrollIntoView({behavior:"smooth",block:"start"});
   };
-  $("shuffleBtn").onclick=()=>{const qs=filtered();state.order=shuffle(qs.map(q=>q.id));state.cur=0;state.phase="ask";save();draw();};
+  $("shuffleBtn").onclick=()=>{if($("lecSel").value.indexOf("exam:")===0){start();return;}const qs=filtered();state.order=shuffle(qs.map(q=>q.id));state.cur=0;state.phase="ask";save();draw();};
   $("reviewBtn").onclick=reviewWrong;
   $("examBtn").onclick=startExam;
   $("resetBtn").onclick=()=>{if(confirm("Clear all progress?")){localStorage.removeItem(KEY);state={answers:{},order:[],reviewOnly:false};start();}};
@@ -1051,27 +1135,40 @@ try{
 """
 
 
-def update_readme(lectures, questions):
+def update_readme(lectures, questions, exams):
     path = os.path.join(ROOT, "README.md")
     with open(path, encoding="utf-8") as f:
         text = f.read()
     start = "<!-- LECTURES:START -->"
     end = "<!-- LECTURES:END -->"
-    if start not in text or end not in text:
-        return
-    counts = {}
-    for q in questions:
-        if q["lecture"]:
-            counts[q["lecture"]] = counts.get(q["lecture"], 0) + 1
-    rows = []
-    total = 0
-    for lec in lectures:
-        n = counts.get(lec["id"], 0)
-        total += n
-        rows.append(f"| [محاضرة {lec['order']}: {lec['title_ar']}"
-                    f" ({lec['title_en']})](generated/lectures/{lec['id']}.md) | {n} |")
-    block = start + "\n" + "\n".join(rows) + f"\n\n**مجموع أسئلة المحاضرات: {total}**" + "\n" + end
-    text = text[:text.index(start)] + block + text[text.index(end) + len(end):]
+    if start in text and end in text:
+        counts = {}
+        for q in questions:
+            if q["lecture"]:
+                counts[q["lecture"]] = counts.get(q["lecture"], 0) + 1
+        rows = []
+        total = 0
+        for lec in lectures:
+            n = counts.get(lec["id"], 0)
+            total += n
+            rows.append(f"| [محاضرة {lec['order']}: {lec['title_ar']}"
+                        f" ({lec['title_en']})](generated/lectures/{lec['id']}.md) | {n} |")
+        block = start + "\n" + "\n".join(rows) + f"\n\n**مجموع أسئلة المحاضرات: {total}**" + "\n" + end
+        text = text[:text.index(start)] + block + text[text.index(end) + len(end):]
+    estart = "<!-- EXAMS:START -->"
+    eend = "<!-- EXAMS:END -->"
+    if estart in text and eend in text:
+        rows = []
+        total = 0
+        for exam in exams:
+            n = sum(1 for q in questions if q["exam"] == exam["id"])
+            total += n
+            en = f" ({exam['title_en']})" if exam["title_en"] != exam["title_ar"] else ""
+            rows.append(f"| [{exam['title_ar']}{en}]"
+                        f"(generated/exams/{exam['id']}.md) | {n} |")
+        block = (estart + "\n" + "\n".join(rows) +
+                 f"\n\n**مجموع أسئلة الامتحانات: {total}**" + "\n" + eend)
+        text = text[:text.index(estart)] + block + text[text.index(eend) + len(eend):]
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
 
@@ -1102,15 +1199,18 @@ self.addEventListener("fetch", e => {
 """
 
 
-def generate_site(questions, coding, lectures):
+def generate_site(questions, coding, lectures, exams):
     os.makedirs(DOCS_DIR, exist_ok=True)
     data = {
         "topics": TOPIC_LABELS,
+        "exams": [{"id": e["id"], "title_ar": e["title_ar"],
+                   "title_en": e["title_en"], "order": e["order"]} for e in exams],
         "lectures": [{"id": l["id"], "title_ar": l["title_ar"],
                       "title_en": l["title_en"], "order": l["order"],
                       "content": l["content"]} for l in lectures],
         "questions": [{
             "id": q["id"], "topic": q["topic"], "lecture": q["lecture"],
+            "exam": q["exam"],
             "topicLabel": q["topicLabel"],
             "q": q["q"], "title": q["title"], "code": q["code"],
             "expected": q["expected"], "exception": q["exception"],
@@ -1140,14 +1240,17 @@ def generate_site(questions, coding, lectures):
 
 def main():
     lectures = collect_lectures()
-    questions = collect_questions(lectures)
+    exams = collect_exams()
+    questions = collect_questions(lectures, exams)
     coding = collect_coding()
     generate_topic_markdown(questions)
     generate_lecture_markdown(lectures, questions)
-    update_readme(lectures, questions)
-    generate_site(questions, coding, lectures)
-    print(f"generated {len(questions)} questions ({sum(1 for q in questions if q['lecture'])} lecture), "
-          f"{len(coding)} coding problems, {len(lectures)} lectures")
+    generate_exam_markdown(exams, questions)
+    update_readme(lectures, questions, exams)
+    generate_site(questions, coding, lectures, exams)
+    print(f"generated {len(questions)} questions ({sum(1 for q in questions if q['lecture'])} lecture, "
+          f"{sum(1 for q in questions if q['exam'])} exam), "
+          f"{len(coding)} coding problems, {len(lectures)} lectures, {len(exams)} exams")
 
 
 if __name__ == "__main__":

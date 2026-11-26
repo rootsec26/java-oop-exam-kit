@@ -1,0 +1,1 @@
+{"options": ["Integer.parseInt(stringVariable)", "Convert.toInt(stringVariable)", "Integer.toInt(stringVariable)", "Convert.parseInt(stringVariable)"], "answer": 0}

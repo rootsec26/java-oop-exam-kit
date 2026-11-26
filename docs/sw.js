@@ -1,4 +1,4 @@
-const CACHE = "oop-exam-kit-e6c25220a63c";
+const CACHE = "oop-exam-kit-b3de9b547851";
 const ASSETS = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

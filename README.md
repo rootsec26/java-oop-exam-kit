@@ -46,6 +46,16 @@ python tools/verify.py
 **مجموع أسئلة المحاضرات: 115**
 <!-- LECTURES:END -->
 
+## امتحانات سابقة
+
+| الامتحان | العدد |
+|---|---|
+<!-- EXAMS:START -->
+| [Mid2024 National](generated/exams/mid2024-national.md) | 37 |
+
+**مجموع أسئلة الامتحانات: 37**
+<!-- EXAMS:END -->
+
 ## تساهم؟
 
 شوف [CONTRIBUTING.md](CONTRIBUTING.md) — 3 خطوات: اعمل فولدر للسؤال، اكتب `Main.java` و `expected.txt`، وشغّل `verify.py`.
