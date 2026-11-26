@@ -274,7 +274,7 @@ SITE_TEMPLATE = r"""<!DOCTYPE html>
 --gold:#F5A623;--gold-d:#a16207;--on-gold:#241a02;--gold-soft:rgba(245,166,35,.14);
 --good:#15803d;--bad:#b91c1c;
 --kw:#7c3aed;--typ:#0369a1;--str:#15803d;--num:#b45309;--com:#8a94b8;--ann:#db2777;
-color-scheme:light}
+color-scheme:light dark}
 *{box-sizing:border-box}
 html{scrollbar-color:var(--gold) var(--bg)}
 body{margin:0;color:var(--text);font-family:"Segoe UI",Tahoma,Arial,sans-serif;line-height:1.7;
@@ -353,6 +353,41 @@ textarea:focus{border-color:var(--gold-d);outline:none}
 .explain-panel code{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:0 4px;font-family:Consolas,monospace;font-size:.85em;direction:ltr;unicode-bidi:embed}
 .explain-panel pre.code{text-align:left}
 .nazri{display:inline-block;background:var(--gold-soft);border:1px solid var(--border-g);color:var(--gold-d);border-radius:99px;padding:3px 12px;font-size:.8rem;font-weight:700}
+.tag.danger{border-color:var(--bad);color:var(--bad);background:rgba(255,123,114,.08)}
+.tag.examtimer{font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:.5px}
+.result-hero{text-align:center;padding:6px 0 2px}
+.score-big{font-size:3.4rem;font-weight:800;color:var(--gold-d);line-height:1.1;font-variant-numeric:tabular-nums}
+.pct{font-size:1.15rem;color:var(--muted);margin-top:2px}
+.rstats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:12px 0 4px}
+.rstat{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 16px;font-size:.9rem}
+.rstat b{color:var(--gold-d)}
+.btitle{margin:20px 0 8px;font-size:1.05rem}
+.bwrap{overflow-x:auto}
+.btable{width:100%;border-collapse:collapse;font-size:.9rem;min-width:420px}
+.btable th,.btable td{border:1px solid var(--border);padding:6px 10px;text-align:right}
+.btable th{background:var(--panel2)}
+.btable td.num,.btable th.num{text-align:center;white-space:nowrap}
+.wrongitem{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:12px 0;background:var(--panel2)}
+.wrongitem .qhead{font-weight:700;margin-bottom:4px}
+.wcmp{display:flex;flex-direction:column;gap:6px;font-size:.9rem;margin:10px 0}
+.wcmp>div{border-radius:8px;padding:7px 10px;white-space:pre-wrap;word-break:break-word}
+.wcmp .lbl{font-weight:700;font-size:.78rem;display:block;margin-bottom:2px}
+.wcmp-u{background:rgba(255,123,114,.08);border:1px solid rgba(255,123,114,.35)}
+.wcmp-c{background:rgba(61,220,151,.08);border:1px solid rgba(61,220,151,.35)}
+.wcmp-e{background:var(--panel);border:1px dashed var(--border-g);color:var(--muted)}
+@media (prefers-color-scheme: dark){
+:root{--bg:#14110c;--bg2:#1a1712;--panel:#1e1a13;--panel2:#262119;--code:#241f15;
+--border:#3d3524;--border-g:#8a6d2f;
+--text:#efe8d8;--muted:#a89c80;
+--gold:#F5A623;--gold-d:#f0b53f;--on-gold:#241a02;--gold-soft:rgba(245,166,35,.16);
+--good:#3ddc97;--bad:#ff7b72;
+--kw:#b79cff;--typ:#7cc4ff;--str:#7ee2a8;--num:#f5c26b;--com:#8a94b8;--ann:#ff9ecb;
+color-scheme:dark}
+.opt.right{background:rgba(61,220,151,.1)}
+.opt.wrong{background:rgba(255,123,114,.08)}
+.feedback.ok{background:rgba(61,220,151,.08)}
+.feedback.no{background:rgba(255,123,114,.06)}
+}
 @media (max-width:640px){
 .wrap{padding:12px 10px 32px}
 .controls{display:grid;grid-template-columns:1fr 1fr}
@@ -383,6 +418,7 @@ select{width:100%}
 <button id="explainBtn" class="btn" style="display:none" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Read Explanation</button>
 <button id="shuffleBtn" class="btn" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>Shuffle</button>
 <button id="reviewBtn" class="btn" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Review Wrong</button>
+<button id="examBtn" class="btn primary" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Exam Mode</button>
 <button id="resetBtn" class="btn" dir="ltr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>Reset Score</button>
 </div>
 <div class="barwrap"><div class="bar"><div id="barFill"></div></div><span class="scorechip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span id="scoreLabel"></span></span></div>
@@ -393,6 +429,9 @@ select{width:100%}
 <script>
 const DATA = __DATA__;
 const KEY = "javaOopQuizV1";
+const EXAM_KEY = "javaOopExamV1";
+const EXAM_SIZE = 20;
+const EXAM_SECONDS = 30 * 60;
 function loadState(){
   try{
     const raw = JSON.parse(localStorage.getItem(KEY) || "null");
@@ -411,6 +450,48 @@ function loadState(){
 }
 let state = loadState();
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+let exam = null;
+let examMode = false;
+let examTick = null;
+function loadExam(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(EXAM_KEY) || "null");
+    if(!raw || typeof raw !== "object" || !Array.isArray(raw.order)) return null;
+    const valid = new Set(DATA.questions.map(q=>q.id));
+    const order = raw.order.filter(id=>valid.has(id)).slice(0, EXAM_SIZE);
+    if(!order.length) return null;
+    const answers = {};
+    if(raw.answers && typeof raw.answers === "object"){
+      for(const id of Object.keys(raw.answers)){
+        if(order.indexOf(id) < 0) continue;
+        const a = raw.answers[id];
+        if(!a || typeof a !== "object") continue;
+        const rec = {};
+        if(a.pick !== undefined && a.pick !== null) rec.pick = String(a.pick);
+        if(typeof a.typed === "string") rec.typed = a.typed;
+        answers[id] = rec;
+      }
+    }
+    const deadline = Number(raw.deadline);
+    const cur = Math.floor(Number(raw.cur));
+    return {
+      order: order,
+      cur: isFinite(cur) ? Math.min(Math.max(cur, 0), order.length - 1) : 0,
+      answers: answers,
+      deadline: isFinite(deadline) ? deadline : Date.now() + EXAM_SECONDS * 1000,
+      startedAt: Number(raw.startedAt) || Date.now(),
+      finished: !!raw.finished,
+      finishedAt: Number(raw.finishedAt) || 0
+    };
+  }catch(e){ return null; }
+}
+function saveExam(){ try{ localStorage.setItem(EXAM_KEY, JSON.stringify(exam)); }catch(e){} }
+function exitExam(){
+  examMode = false;
+  if(examTick){ clearInterval(examTick); examTick = null; }
+  exam = null;
+  try{ localStorage.removeItem(EXAM_KEY); }catch(e){}
+}
 function answerText(q){
   if(q.options) return q.options[q.answerIndex];
   if(q.compileError) return "COMPILE_ERROR";
@@ -542,10 +623,12 @@ function toggleExplain(){
 }
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function start(){
+  if(exam||examMode) exitExam();
   state.reviewOnly=false; save();
   const qs=filtered(); state.order=qs.map(q=>q.id); state.cur=0; state.phase="ask"; save(); draw();
 }
 function draw(){
+  if(examMode){ drawExam(); return; }
   const area=$("quizArea");
   if(!state.order.length){
     area.innerHTML='<div class="card muted">No questions in this selection.</div>';
@@ -556,7 +639,7 @@ function draw(){
   if(!q){ state.order=state.order.filter(x=>x!==id); draw(); return; }
   const answered=!!state.answers[id];
   const ans=state.answers[id];
-  const mode=q.options?"mcq":(q.compileError?"choice":(q.exception?"exc":"output"));
+  const mode=qMode(q);
   const pos=state.order.indexOf(id)+1;
   const cp=correctPick(q);
   let html='<div class="card"><div class="tags"><span class="tag">Question '+pos+' of '+state.order.length+'</span><span class="tag">'+esc(q.topicLabel)+'</span>'+(q.theory?'<span class="tag nazri">Theory</span>':"")+(q.title?'<span class="tag">'+esc(q.title)+'</span>':"")+'</div>';
@@ -625,26 +708,22 @@ function draw(){
   if(nb) nb.onclick=()=>{state.cur++; if(state.cur>=state.order.length){state.cur=0;} save(); draw();};
   updateScore();
 }
+function answerCorrect(q,pick,typed){
+  if(q.options) return String(pick)===String(q.answerIndex);
+  if(pick==="compile") return q.compileError;
+  if(pick==="exc") return !!q.exception;
+  if(pick==="run") return !q.compileError&&!q.exception;
+  if(pick!=="text"&&typed===undefined) return false;
+  if(q.compileError||q.exception) return false;
+  return norm(typed||"")===norm(q.expected);
+}
 function submitOutput(q,kind){
   const txt=$("ansBox")?$("ansBox").value:"";
-  let correct=false;
-  if(kind==="exc") correct=!!q.exception;
-  else if(kind==="compile") correct=q.compileError;
-  else {
-    correct=!q.compileError&&!q.exception&&norm(txt)===norm(q.expected);
-  }
-  grade(q,kind,txt,correct);
+  grade(q,kind,txt);
 }
-function grade(q,pick,typed,precomputed){
+function grade(q,pick,typed){
   const id=q.id;
-  let correct;
-  if(precomputed!==undefined) correct=precomputed;
-  else if(q.options) correct=String(pick)===String(q.answerIndex);
-  else if(pick==="compile") correct=q.compileError;
-  else if(pick==="exc") correct=!!q.exception;
-  else if(pick==="run") correct=!q.compileError&&!q.exception;
-  else correct=false;
-  state.answers[id]={correct,pick,typed:typed||""}; save(); draw();
+  state.answers[id]={correct:answerCorrect(q,pick,typed),pick,typed:typed||""}; save(); draw();
 }
 function updateScore(){
   const total=Object.keys(state.answers).length;
@@ -653,6 +732,252 @@ function updateScore(){
   const all=DATA.questions.length;
   const done=new Set(Object.keys(state.answers)).size;
   $("barFill").style.width=(done/all*100)+"%";
+}
+function fmtClock(ms){
+  const s=Math.max(0,Math.ceil(ms/1000));
+  const m=Math.floor(s/60);
+  return String(m).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+}
+function examTimeLeft(){ return Math.max(0, exam.deadline - Date.now()); }
+function tickExam(){
+  if(!exam || exam.finished) return;
+  const el=$("examTimer");
+  if(el){
+    const left=examTimeLeft();
+    el.textContent=fmtClock(left);
+    el.className="tag examtimer"+(left<=300000?" danger":"");
+  }
+  if(examTimeLeft()<=0) finishExam(true);
+}
+function armTimer(){
+  if(examTick){ clearInterval(examTick); examTick=null; }
+  examTick=setInterval(tickExam,1000);
+  tickExam();
+}
+function startExam(){
+  const pool=shuffle(DATA.questions.map(q=>q.id));
+  const n=Math.min(EXAM_SIZE,pool.length);
+  exam={order:pool.slice(0,n),cur:0,answers:{},
+    deadline:Date.now()+EXAM_SECONDS*1000,startedAt:Date.now(),finished:false,finishedAt:0};
+  examMode=true; state.reviewOnly=false; save(); saveExam(); armTimer(); drawExam();
+}
+function qMode(q){
+  return q.options?"mcq":(q.compileError?"choice":(q.exception?"exc":"output"));
+}
+function examAnswered(id){
+  const a=exam.answers[id];
+  if(!a) return false;
+  if(a.pick && a.pick!=="text") return true;
+  return (a.typed||"").trim()!=="";
+}
+function examUnanswered(){
+  return exam.order.filter(id=>!examAnswered(id)).length;
+}
+function setExamPick(id,pick){
+  const a=exam.answers[id]||{};
+  a.pick=pick; a.typed="";
+  exam.answers[id]=a; saveExam();
+}
+function setExamText(id,typed){
+  const a=exam.answers[id]||{};
+  a.pick="text"; a.typed=typed;
+  exam.answers[id]=a; saveExam();
+}
+function examGo(d){
+  exam.cur+=d;
+  if(exam.cur<0) exam.cur=0;
+  if(exam.cur>=exam.order.length) exam.cur=exam.order.length-1;
+  saveExam(); drawExam();
+}
+function examOptCls(id,val){
+  const a=exam.answers[id];
+  return "opt"+(a && String(a.pick)===String(val)?" sel":"");
+}
+function drawExam(){
+  const area=$("quizArea");
+  if(exam.finished){ drawExamResult(area); return; }
+  if(!exam.order.length){
+    area.innerHTML='<div class="card muted">No questions available for the exam.</div>';
+    return;
+  }
+  if(exam.cur>=exam.order.length) exam.cur=exam.order.length-1;
+  if(exam.cur<0) exam.cur=0;
+  const id=exam.order[exam.cur];
+  const q=DATA.questions.find(x=>x.id===id);
+  if(!q){ exam.order.splice(exam.cur,1); saveExam(); drawExam(); return; }
+  const a=exam.answers[id]||null;
+  const mode=qMode(q);
+  const pos=exam.cur+1;
+  const last=exam.cur===exam.order.length-1;
+  let html='<div class="card"><div class="tags"><span class="tag">Exam</span><span class="tag examtimer" id="examTimer" dir="ltr">'+fmtClock(examTimeLeft())+'</span><span class="tag">Question '+pos+' of '+exam.order.length+'</span><span class="tag">'+esc(q.topicLabel)+'</span>'+(q.theory?'<span class="tag nazri">Theory</span>':"")+(q.title?'<span class="tag">'+esc(q.title)+'</span>':"")+'</div>';
+  if(q.code) html+=codeBlock(q.code);
+  if(mode==="mcq"){
+    html+='<div class="opts">';
+    q.options.forEach((t,i)=>{
+      html+='<div class="'+examOptCls(id,i)+'" data-idx="'+i+'" dir="auto">'+esc(t)+'</div>';
+    });
+    html+='</div>';
+  } else if(mode==="choice"){
+    html+='<div class="opts">';
+    [["compile","Compile Error"],["run","Compiles &amp; Runs"]].forEach(([p,t])=>{
+      html+='<div class="'+examOptCls(id,p)+'" data-pick="'+p+'" dir="ltr">'+t+'</div>';
+    });
+    html+='</div>';
+  } else if(mode==="exc"){
+    html+='<div class="opts">';
+    [["exc","Throws Runtime Exception"],["compile","Compile Error"],["run","Runs Normally"]].forEach(([p,t])=>{
+      html+='<div class="'+examOptCls(id,p)+'" data-pick="'+p+'" dir="ltr">'+t+'</div>';
+    });
+    html+='</div>';
+    html+='<div class="instr">لو اخترت <span dir="ltr">Runtime Exception</span> اسم الـ Exception هيظهر في النتيجة.</div>';
+  } else {
+    html+='<div class="instr">اكتب الناتج اللي هيطبعه البرنامج (<span dir="ltr">stdout</span>). لو بيقع بـ <span dir="ltr">Runtime Exception</span> أو <span dir="ltr">Compile Error</span> اختار الزرار المناسب.</div>';
+    html+='<textarea id="ansBox" dir="ltr" placeholder="Output here...">'+esc(a&&a.typed?a.typed:"")+'</textarea>';
+    html+='<div class="opts row">';
+    html+='<div class="'+examOptCls(id,"exc")+'" data-pick="exc" dir="ltr">Runtime Exception</div>';
+    html+='<div class="'+examOptCls(id,"compile")+'" data-pick="compile" dir="ltr">Compile Error</div>';
+    html+='</div>';
+  }
+  html+='<div class="cardfoot"><div class="actions">';
+  html+='<button class="btn" id="exPrev" dir="ltr"'+(exam.cur===0?" disabled":"")+'>Prev</button>';
+  if(mode==="output") html+='<button class="btn primary" id="exCheck" dir="ltr">Save Answer</button>';
+  if(last) html+='<button class="btn primary" id="exFinish" dir="ltr">Finish</button>';
+  else html+='<button class="btn primary" id="exNext" dir="ltr">Next</button>';
+  html+='</div></div></div>';
+  area.innerHTML=html;
+  bindCodex(area);
+  area.querySelectorAll(".opt").forEach(o=>{
+    o.onclick=()=>{
+      const pick=o.dataset.idx!==undefined?o.dataset.idx:o.dataset.pick;
+      setExamPick(id,pick);
+      area.querySelectorAll(".opt").forEach(x=>x.classList.remove("sel"));
+      o.classList.add("sel");
+      const bx=$("ansBox"); if(bx) bx.value="";
+    };
+  });
+  const box=$("ansBox");
+  if(box) box.addEventListener("input",()=>{
+    setExamText(id,box.value);
+    area.querySelectorAll(".opt").forEach(x=>x.classList.remove("sel"));
+  });
+  const nx=$("exNext");
+  if(nx) nx.onclick=()=>examGo(1);
+  const pv=$("exPrev");
+  if(pv) pv.onclick=()=>examGo(-1);
+  const ck=$("exCheck");
+  if(ck) ck.onclick=()=>{
+    const cur=exam.answers[id];
+    if(box && !(cur && cur.pick && cur.pick!=="text")) setExamText(id,box.value);
+    ck.textContent="Saved"; setTimeout(()=>{ck.textContent="Save Answer";},1200);
+  };
+  const fn=$("exFinish");
+  if(fn) fn.onclick=()=>{
+    const un=examUnanswered();
+    if(un>0 && !confirm(un+" question(s) still unanswered. Finish the exam anyway?")) return;
+    finishExam(false);
+  };
+  tickExam();
+}
+function finishExam(auto){
+  if(!exam || exam.finished) return;
+  clearInterval(examTick); examTick=null;
+  exam.finished=true; exam.finishedAt=Date.now(); saveExam();
+  exam.order.forEach(id=>{
+    const q=DATA.questions.find(x=>x.id===id);
+    const a=exam.answers[id];
+    if(!q || !a) return;
+    const pick=a.pick!==undefined?a.pick:((a.typed||"")!==""?"text":undefined);
+    if(pick===undefined) return;
+    state.answers[id]={correct:answerCorrect(q,pick,a.typed||""),pick,typed:a.typed||""};
+  });
+  save();
+  drawExam();
+}
+function examLectureOrder(lid){
+  const lec=DATA.lectures.find(l=>l.id===lid);
+  return lec?lec.order:500;
+}
+function examGroupLabel(q){
+  if(q.lecture){
+    const lec=DATA.lectures.find(l=>l.id===q.lecture);
+    if(lec) return "Lecture "+lec.order+": "+lec.title_ar;
+    return q.topicLabel;
+  }
+  return DATA.topics[q.topic]||q.topicLabel;
+}
+function examResults(){
+  const groups={};
+  const order=[];
+  const wrong=[];
+  let score=0,total=0;
+  exam.order.forEach(id=>{
+    const q=DATA.questions.find(x=>x.id===id);
+    if(!q) return;
+    total++;
+    const a=exam.answers[id]||null;
+    const pick=a?(a.pick!==undefined?a.pick:((a.typed||"")!==""?"text":undefined)):undefined;
+    const typed=a?(a.typed||""):"";
+    const ok=pick!==undefined&&answerCorrect(q,pick,typed);
+    if(ok) score++;
+    const gkey=q.lecture?("L"+q.lecture):("T"+q.topic);
+    if(!groups[gkey]){ groups[gkey]={label:examGroupLabel(q),lk:q.lecture?examLectureOrder(q.lecture):1000,total:0,right:0}; order.push(gkey); }
+    groups[gkey].total++; if(ok) groups[gkey].right++;
+    if(!ok) wrong.push({q:q,pick:pick,typed:typed});
+  });
+  order.sort((x,y)=>{
+    const xg=groups[x],yg=groups[y];
+    return xg.lk-yg.lk||xg.label.localeCompare(yg.label,"ar");
+  });
+  return {score:score,total:total,pct:total?Math.round(score/total*100):0,groups:order.map(k=>groups[k]),wrong:wrong};
+}
+function examUserAnswer(w){
+  const q=w.q,pick=w.pick,typed=w.typed;
+  if(pick===undefined && !(typed||"")) return "—";
+  if(q.options && pick!==undefined) return esc(q.options[Number(pick)]!==undefined?q.options[Number(pick)]:String(pick));
+  if(pick==="text") return typed?esc(typed):"(empty)";
+  const map={compile:"Compile Error",run:"Runs normally",exc:"Runtime Exception"};
+  return map[pick]?map[pick]:esc(String(pick));
+}
+function drawExamResult(area){
+  const r=examResults();
+  const used=exam.finishedAt-exam.startedAt;
+  const answered=exam.order.filter(examAnswered).length;
+  let html='<div class="card result-hero"><div class="tags"><span class="tag">Exam Result</span><span class="tag" dir="ltr">'+fmtClock(used)+'</span></div>';
+  html+='<div class="score-big">'+r.score+"/"+r.total+'</div>';
+  html+='<div class="pct">'+r.pct+"%</div>";
+  html+='<div class="rstats"><div class="rstat">Time used <b dir="ltr">'+fmtClock(used)+'</b></div><div class="rstat">Answered <b>'+answered+"/"+r.total+'</b></div><div class="rstat">Wrong <b>'+r.wrong.length+"</b></div></div>";
+  html+='<h3 class="btitle">Breakdown by lecture / topic</h3><div class="bwrap"><table class="btable"><thead><tr><th>Section</th><th class="num">Correct</th><th class="num">Total</th><th class="num">Lost</th></tr></thead><tbody>';
+  r.groups.forEach(g=>{
+    html+="<tr><td>"+esc(g.label)+"</td><td class=num>"+g.right+"</td><td class=num>"+g.total+"</td><td class=num>"+(g.total-g.right)+"</td></tr>";
+  });
+  html+='</tbody></table></div>';
+  if(r.wrong.length){
+    html+='<h3 class="btitle">Wrong questions ('+r.wrong.length+")</h3>";
+    r.wrong.forEach((w,i)=>{
+      const q=w.q;
+      html+='<div class="wrongitem"><div class="qhead">'+(i+1)+". "+esc(q.topicLabel)+(q.title?" — "+esc(q.title):"")+'</div>';
+      if(q.code) html+=codeBlock(q.code);
+      html+='<div class="wcmp"><div class="wcmp-u"><span class="lbl">Your answer</span>'+examUserAnswer(w)+'</div>';
+      html+='<div class="wcmp-c"><span class="lbl">Correct answer</span><pre class="code" style="margin:4px 0 0"><code>'+esc(answerText(q))+'</code></pre></div>';
+      html+='<div class="wcmp-e"><span class="lbl">Explanation</span>'+esc(q.explanation)+'</div></div></div>';
+    });
+  }
+  html+='<div class="cardfoot"><div class="actions">';
+  html+='<button class="btn primary" id="exRetry" dir="ltr">Retry Exam</button>';
+  html+='<button class="btn" id="exReview" dir="ltr">Review Wrong</button>';
+  html+='<button class="btn" id="exBack" dir="ltr">Back to Practice</button>';
+  html+='</div></div></div>';
+  area.innerHTML=html;
+  bindCodex(area);
+  $("exRetry").onclick=startExam;
+  $("exReview").onclick=()=>{ exitExam(); reviewWrong(); draw(); };
+  $("exBack").onclick=()=>{ exitExam(); draw(); };
+}
+function reviewWrong(){
+  state.reviewOnly=true;
+  const wrong=DATA.questions.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);
+  if(!wrong.length){ alert("No wrong answers to review!"); return; }
+  state.order=wrong.map(q=>q.id); state.cur=0; save(); draw();
 }
 function showError(e){
   const area=$("quizArea") || document.body;
@@ -673,7 +998,8 @@ try{
     wrap.scrollIntoView({behavior:"smooth",block:"start"});
   };
   $("shuffleBtn").onclick=()=>{const qs=filtered();state.order=shuffle(qs.map(q=>q.id));state.cur=0;state.phase="ask";save();draw();};
-  $("reviewBtn").onclick=()=>{state.reviewOnly=true;const wrong=DATA.questions.filter(q=>state.answers[q.id]&&!state.answers[q.id].correct);if(!wrong.length){alert("No wrong answers to review!");return;}state.order=wrong.map(q=>q.id);state.cur=0;save();draw();};
+  $("reviewBtn").onclick=reviewWrong;
+  $("examBtn").onclick=startExam;
   $("resetBtn").onclick=()=>{if(confirm("Clear all progress?")){localStorage.removeItem(KEY);state={answers:{},order:[],reviewOnly:false};start();}};
   $("fsClose").onclick=closeFs;
   $("fsModal").addEventListener("click",e=>{if(e.target.id==="fsModal")closeFs();});
@@ -682,7 +1008,14 @@ try{
   renderLectures();
   toggleExplain();
   updateScore();
-  start();
+  exam=loadExam();
+  if(exam){
+    examMode=true;
+    if(!exam.finished){
+      if(examTimeLeft()<=0) finishExam(true);
+      else { armTimer(); drawExam(); }
+    } else drawExam();
+  } else start();
 }catch(e){
   showError(e);
 }
