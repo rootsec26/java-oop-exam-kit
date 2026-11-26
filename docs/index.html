@@ -704,12 +704,29 @@ function drawExamResult(area){
   html+='<button class="btn primary" id="exRetry" dir="ltr">Retry Exam</button>';
   html+='<button class="btn" id="exReview" dir="ltr">Review Wrong</button>';
   html+='<button class="btn" id="exBack" dir="ltr">Back to Practice</button>';
+  html+='<button class="btn" id="exShare" dir="ltr">Share Result</button>';
   html+='</div></div></div>';
   area.innerHTML=html;
   bindCodex(area);
   $("exRetry").onclick=startExam;
   $("exReview").onclick=()=>{ exitExam(); reviewWrong(); draw(); };
   $("exBack").onclick=()=>{ exitExam(); draw(); };
+  $("exShare").onclick=shareResult;
+}
+async function shareResult(){
+  const r=examResults();
+  const text="جبت "+r.score+"/"+r.total+" في Java OOP Exam Kit. جرب انت كمان وشوف هتجيب كام: "+location.origin;
+  const btn=$("exShare");
+  if(navigator.share){
+    try{ await navigator.share({title:"Java OOP Exam Kit",text:text}); return; }
+    catch(e){ if(e && e.name==="AbortError") return; }
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    if(btn){ const old=btn.innerHTML; btn.innerHTML="Copied"; setTimeout(()=>{btn.innerHTML=old;},1500); }
+  }catch(e){
+    window.prompt("Copy your result:",text);
+  }
 }
 function reviewWrong(){
   state.reviewOnly=true;
