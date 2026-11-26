@@ -1,3 +1,4 @@
+import hashlib
 import html
 import json
 import os
@@ -265,6 +266,9 @@ SITE_TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14110c">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Java OOP Exam Kit — كويز</title>
 <style>
 :root{
@@ -1036,6 +1040,11 @@ try{
 }catch(e){
   showError(e);
 }
+try{
+  if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  }
+}catch(e){}
 </script>
 </body>
 </html>
@@ -1067,6 +1076,32 @@ def update_readme(lectures, questions):
         f.write(text)
 
 
+SW_TEMPLATE = r"""const CACHE = "__CACHE_NAME__";
+const ASSETS = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+self.addEventListener("fetch", e => {
+  if(e.request.method !== "GET") return;
+  e.respondWith(
+    caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+      if(res && res.ok && new URL(e.request.url).origin === location.origin){
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+      }
+      return res;
+    }))
+  );
+});
+"""
+
+
 def generate_site(questions, coding, lectures):
     os.makedirs(DOCS_DIR, exist_ok=True)
     data = {
@@ -1093,6 +1128,14 @@ def generate_site(questions, coding, lectures):
     html_out = SITE_TEMPLATE.replace("__DATA__", payload)
     with open(os.path.join(DOCS_DIR, "index.html"), "w", encoding="utf-8", newline="\n") as f:
         f.write(html_out)
+    manifest_path = os.path.join(DOCS_DIR, "manifest.webmanifest")
+    hash_input = html_out
+    if os.path.exists(manifest_path):
+        with open(manifest_path, encoding="utf-8") as f:
+            hash_input += f.read()
+    cache_name = "oop-exam-kit-" + hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:12]
+    with open(os.path.join(DOCS_DIR, "sw.js"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(SW_TEMPLATE.replace("__CACHE_NAME__", cache_name))
 
 
 def main():
